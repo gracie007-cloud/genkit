@@ -16,7 +16,7 @@
     "link-genkit-cli": "cd genkit-tools/cli && npm link",
     "pnpm-install-js": "cd js && pnpm i",
     "pnpm-install-genkit-tools": "cd genkit-tools && pnpm i",
-    "pack:all": "rm -r dist || true && mkdir dist && pnpm run pack:tools && pnpm run pack:js && pnpm dist:zip",
+    "pack:all": "rimraf dist && mkdir dist && pnpm run pack:tools && pnpm run pack:js && pnpm dist:zip",
     "pack:tools": "cd genkit-tools && pnpm pack:all",
     "pack:js": "cd js && pnpm pack:all",
     "dist:zip": "cd dist && zip genkit-dist.zip *.tgz",

@@ -17,7 +17,8 @@
 import { LoggingWinston } from '@google-cloud/logging-winston';
 import { getCurrentEnv } from 'genkit';
 import { logger } from 'genkit/logging';
-import type { Writable } from 'stream';
+import { Writable } from 'stream';
+import type { Logger } from 'winston';
 import type { GcpTelemetryConfig } from './types.js';
 import { loggingDenied, loggingDeniedHelpText } from './utils.js';
 
@@ -34,7 +35,7 @@ let useJsonFormatOverride = false;
 export class GcpLogger {
   constructor(private readonly config: GcpTelemetryConfig) {}
 
-  async getLogger(env: string) {
+  async getLogger(env: string): Promise<Logger> {
     // Dynamically importing winston here more strictly controls
     // the import order relative to registering instrumentation
     // with OpenTelemetry. Incorrect import order will trigger
