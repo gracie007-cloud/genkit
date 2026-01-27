@@ -12,30 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Format demo sample.
+"""Format demo sample - Output format options in Genkit.
 
-This sample demonstrates the various output formats available in Genkit:
+This sample demonstrates the various output formats available in Genkit for
+structured and unstructured AI-generated content.
 
-1. **text** - Raw text output (default)
-2. **json** - Structured JSON object output
-3. **array** - JSON array of items
-4. **enum** - Single value from a predefined set
-5. **jsonl** - Newline-delimited JSON (streaming friendly)
+See README.md for testing instructions.
 
-Run with: genkit start -- uv run --package format-demo src/main.py
-Then use the Dev UI to test each flow.
-
-Example inputs for testing in the Dev UI (pre-populated with defaults):
-
-- generate_haiku_text: {"topic": "coding"}
-- get_country_info_json: {"country": "Japan"}
-- recommend_books_array: {"genre": "Fantasy"}
-- classify_sentiment_enum: {"review": "This product is terrible and broke after one day"}
-- create_story_characters_jsonl: {"theme": "Space Opera"}
+Output Formats
+==============
+| Format   | Description                              | Use Case                    |
+|----------|------------------------------------------|-----------------------------|
+| `text`   | Raw text output (default)                | Free-form responses         |
+| `json`   | Structured JSON object output            | API responses, data objects |
+| `array`  | JSON array of items                      | Lists, collections          |
+| `enum`   | Single value from a predefined set       | Classification, categories  |
+| `jsonl`  | Newline-delimited JSON (streaming)       | Large datasets, streaming   |
 """
 
 import asyncio
 import os
+from typing import Any, cast
 
 import structlog
 from pydantic import BaseModel, Field
@@ -49,9 +46,10 @@ logger = structlog.get_logger(__name__)
 if 'GEMINI_API_KEY' not in os.environ:
     os.environ['GEMINI_API_KEY'] = input('Please enter your GEMINI_API_KEY: ')
 
+
 ai = Genkit(
-    plugins=[GoogleAI()],
-    model='googleai/gemini-2.5-flash',
+    plugins=[GoogleAI(api_version='v1alpha')],
+    model='googleai/gemini-3-flash-preview',
 )
 
 
@@ -62,30 +60,27 @@ class HaikuInput(BaseModel):
     topic: str = Field(default='coding', description='The topic for the haiku')
 
 
-@ai.flow()
-async def generate_haiku_text(input: HaikuInput) -> str:
-    """Generate a haiku about a given topic.
+class Book(BaseModel):
+    """A book with title and author."""
 
-    Uses the 'text' format which returns the model's response as a plain string.
-    This is the simplest format, useful when you just need unstructured text.
+    title: str
+    author: str
 
-    Example output:
-        "Lines of code cascade,
-        Bugs hide in the syntax maze,
-        Debug brings the dawn."
-    """
-    response = await ai.generate(
-        prompt=f'Write a haiku about {input.topic}',
-        output=OutputConfig(format='text'),
+
+class Character(BaseModel):
+    """A character in a story."""
+
+    name: str
+    role: str
+
+
+class ClassifySentimentInput(BaseModel):
+    """Input for sentiment classification."""
+
+    review: str = Field(
+        default='This product is terrible and broke after one day',
+        description='Product review text to classify',
     )
-    return response.text
-
-
-# --- 2. JSON Format ---
-class CountryInfoInput(BaseModel):
-    """Input for getting country information."""
-
-    country: str = Field(default='Japan', description='Name of the country')
 
 
 class CountryInfo(BaseModel):
@@ -96,74 +91,22 @@ class CountryInfo(BaseModel):
     population: int
 
 
-@ai.flow()
-async def get_country_info_json(input: CountryInfoInput) -> dict:
-    """Get structured information about a country.
+class CountryInfoInput(BaseModel):
+    """Input for getting country information."""
 
-    Uses the 'json' format which parses the model's response as a JSON object.
-    You provide a schema (as a JSON Schema dict) to define the expected structure.
-    Genkit uses constrained decoding when supported by the model.
-
-    Example output:
-        {"name": "Japan", "capital": "Tokyo", "population": 125000000}
-    """
-    response = await ai.generate(
-        prompt=f'Give me information about {input.country}',
-        output=OutputConfig(format='json', schema=CountryInfo.model_json_schema()),
-    )
-    return response.output
+    country: str = Field(default='Japan', description='Name of the country')
 
 
-# --- 3. Array Format ---
+class CreateStoryCharactersInput(BaseModel):
+    """Input for creating story characters."""
+
+    theme: str = Field(default='Space Opera', description='Theme or genre of the story')
+
+
 class RecommendBooksInput(BaseModel):
     """Input for book recommendations."""
 
     genre: str = Field(default='Fantasy', description='Book genre to recommend')
-
-
-class Book(BaseModel):
-    """A book with title and author."""
-
-    title: str
-    author: str
-
-
-@ai.flow()
-async def recommend_books_array(input: RecommendBooksInput) -> list:
-    """Recommend famous books in a given genre.
-
-    Uses the 'array' format which parses the model's response as a JSON array of objects.
-    This is useful for generating lists of structured items.
-    The schema must be of type 'array' with 'items' defining the object structure.
-
-    Example output:
-        [
-            {"title": "The Lord of the Rings", "author": "J.R.R. Tolkien"},
-            {"title": "A Game of Thrones", "author": "George R.R. Martin"},
-            {"title": "The Name of the Wind", "author": "Patrick Rothfuss"}
-        ]
-    """
-    response = await ai.generate(
-        prompt=f'List 3 famous {input.genre} books',
-        output=OutputConfig(
-            format='array',
-            schema={
-                'type': 'array',
-                'items': Book.model_json_schema(),
-            },
-        ),
-    )
-    return response.output
-
-
-# --- 4. Enum Format ---
-class ClassifySentimentInput(BaseModel):
-    """Input for sentiment classification."""
-
-    review: str = Field(
-        default='This product is terrible and broke after one day',
-        description='Product review text to classify',
-    )
 
 
 @ai.flow()
@@ -189,21 +132,7 @@ async def classify_sentiment_enum(input: ClassifySentimentInput) -> str:
             },
         ),
     )
-    return response.output
-
-
-# --- 5. JSONL Format ---
-class CreateStoryCharactersInput(BaseModel):
-    """Input for creating story characters."""
-
-    theme: str = Field(default='Space Opera', description='Theme or genre of the story')
-
-
-class Character(BaseModel):
-    """A character in a story."""
-
-    name: str
-    role: str
+    return cast(str, response.output)
 
 
 @ai.flow()
@@ -235,7 +164,72 @@ async def create_story_characters_jsonl(input: CreateStoryCharactersInput) -> li
             },
         ),
     )
-    return response.output
+    return cast(list[Any], response.output)
+
+
+@ai.flow()
+async def generate_haiku_text(input: HaikuInput) -> str:
+    """Generate a haiku about a given topic.
+
+    Uses the 'text' format which returns the model's response as a plain string.
+    This is the simplest format, useful when you just need unstructured text.
+
+    Example output:
+        "Lines of code cascade,
+        Bugs hide in the syntax maze,
+        Debug brings the dawn."
+    """
+    response = await ai.generate(
+        prompt=f'Write a haiku about {input.topic}',
+        output=OutputConfig(format='text'),
+    )
+    return response.text
+
+
+@ai.flow()
+async def get_country_info_json(input: CountryInfoInput) -> dict:
+    """Get structured information about a country.
+
+    Uses the 'json' format which parses the model's response as a JSON object.
+    You provide a schema (as a JSON Schema dict) to define the expected structure.
+    Genkit uses constrained decoding when supported by the model.
+
+    Example output:
+        {"name": "Japan", "capital": "Tokyo", "population": 125000000}
+    """
+    response = await ai.generate(
+        prompt=f'Give me information about {input.country}',
+        output=OutputConfig(format='json', schema=CountryInfo.model_json_schema()),
+    )
+    return cast(dict[str, Any], response.output)
+
+
+@ai.flow()
+async def recommend_books_array(input: RecommendBooksInput) -> list:
+    """Recommend famous books in a given genre.
+
+    Uses the 'array' format which parses the model's response as a JSON array of objects.
+    This is useful for generating lists of structured items.
+    The schema must be of type 'array' with 'items' defining the object structure.
+
+    Example output:
+        [
+            {"title": "The Lord of the Rings", "author": "J.R.R. Tolkien"},
+            {"title": "A Game of Thrones", "author": "George R.R. Martin"},
+            {"title": "The Name of the Wind", "author": "Patrick Rothfuss"}
+        ]
+    """
+    response = await ai.generate(
+        prompt=f'List 3 famous {input.genre} books',
+        output=OutputConfig(
+            format='array',
+            schema={
+                'type': 'array',
+                'items': Book.model_json_schema(),
+            },
+        ),
+    )
+    return cast(list[Any], response.output)
 
 
 async def main() -> None:

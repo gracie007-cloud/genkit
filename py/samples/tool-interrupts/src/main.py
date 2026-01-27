@@ -14,7 +14,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tool interrupts sample."""
+"""Tool interrupts sample - Human-in-the-loop with tool interruptions.
+
+This sample demonstrates how to use tool interruptions to pause AI execution
+and wait for human input before continuing, enabling interactive experiences.
+
+See README.md for testing instructions.
+
+Key Features
+============
+| Feature Description                     | Example Function / Code Snippet     |
+|-----------------------------------------|-------------------------------------|
+| Tool Interruption                       | `ctx.interrupt(payload)`            |
+| Handling Interrupts in Loop             | `response.interrupts` check         |
+| Resuming with Tool Response             | `tool_response(request, input)`     |
+| Interactive CLI Loop                    | `while True: ... input()`           |
+"""
 
 import asyncio
 
@@ -42,7 +57,7 @@ class TriviaQuestions(BaseModel):
 
 
 @ai.tool()
-def present_questions(questions: TriviaQuestions, ctx: ToolRunContext):
+def present_questions(questions: TriviaQuestions, ctx: ToolRunContext) -> None:
     """Can present questions to the user, responds with the user' selected answer."""
     ctx.interrupt(questions.model_dump())
 

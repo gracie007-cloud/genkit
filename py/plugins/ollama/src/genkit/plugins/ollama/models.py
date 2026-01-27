@@ -52,7 +52,7 @@ logger = structlog.get_logger(__name__)
 class OllamaSupports(BaseModel):
     """Supports for Ollama models."""
 
-    tools: bool = False
+    tools: bool = True
 
 
 class ModelDefinition(BaseModel):
@@ -190,7 +190,10 @@ class OllamaModel:
                             content=self._build_multimodal_chat_response(chat_response=chunk),
                         )
                     )
-            return chat_response
+            # For streaming requests, we return None because the response chunks
+            # have already been sent via ctx.send_chunk() above. The async generator
+            # is now exhausted, and the caller should not expect a return value.
+            return None
         else:
             return chat_response
 
@@ -230,7 +233,10 @@ class OllamaModel:
                             content=[Part(root=TextPart(text=chunk.response))],
                         )
                     )
-            return generate_response
+            # For streaming requests, we return None because the response chunks
+            # have already been sent via ctx.send_chunk() above. The async generator
+            # is now exhausted, and the caller should not expect a return value.
+            return None
         else:
             return generate_response
 
@@ -279,7 +285,7 @@ class OllamaModel:
 
     @staticmethod
     def build_request_options(
-        config: GenerationCommonConfig | ollama_api.Options | dict[str, Any] | None,
+        config: GenerationCommonConfig | ollama_api.Options | dict[str, object] | None,
     ) -> ollama_api.Options:
         """Build request options for the generate API.
 
@@ -300,7 +306,8 @@ class OllamaModel:
                 num_predict=config.max_output_tokens,
             )
         if isinstance(config, dict):
-            config = ollama_api.Options(**config)
+            # Use cast to avoid type error with **spread of dict[str, object]
+            config = ollama_api.Options(**cast(dict[str, Any], config))
 
         return config
 
@@ -402,7 +409,7 @@ class OllamaModel:
         return basic_generation_usage
 
 
-def _convert_parameters(input_schema: dict[str, Any]) -> ollama_api.Tool.Function.Parameters | None:
+def _convert_parameters(input_schema: dict[str, object]) -> ollama_api.Tool.Function.Parameters | None:
     """Sanitizes a schema to be compatible with Ollama API."""
     if not input_schema or 'type' not in input_schema:
         return None
@@ -417,10 +424,12 @@ def _convert_parameters(input_schema: dict[str, Any]) -> ollama_api.Tool.Functio
 
         if schema_type == 'object':
             schema.properties = {}
-            properties = input_schema.get('properties', [])
-            for key in properties:
-                schema.properties[key] = ollama_api.Tool.Function.Parameters.Property(
-                    type=properties[key]['type'], description=properties[key].get('description', '')
-                )
+            properties_raw = input_schema.get('properties', {})
+            if isinstance(properties_raw, dict):
+                properties = cast(dict[str, dict[str, Any]], properties_raw)
+                for key in properties:
+                    schema.properties[key] = ollama_api.Tool.Function.Parameters.Property(
+                        type=properties[key]['type'], description=properties[key].get('description', '')
+                    )
 
     return schema
